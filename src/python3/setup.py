@@ -8,6 +8,7 @@ def main():
 		"../core/sge_block.c",
 		"../core/sge_field.c",
 		"../core/sge_table.c",
+		"../core/sge_crc16.c",
 		"sgeproto_module.c"
 	]
 

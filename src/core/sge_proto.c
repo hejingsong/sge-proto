@@ -4,11 +4,37 @@
 #include "sge_proto.h"
 #include "sge_block.h"
 #include "sge_parser.h"
+#include "sge_crc16.h"
 
 #define PACK_UNIT_SIZE 8
 
 static const char *SGE_PROTOCOL_HEADER = "01";
 static const uint8_t SGE_PROTOCOL_HEADER_SIZE = 2;
+
+static int
+sge_get_number(const void* ud, field_get_fn cb, const char* field_name, long* value, int idx) {
+	long val = 0;
+	sge_value sv = NEW_SGE_VALUE;
+	sv.ptr = &val;
+	sv.idx = idx;
+	sv.name = field_name;
+
+	cb(ud, &sv);
+	*value = val;
+	return SGE_OK;
+}
+
+static int
+sge_set_number(void* ud, field_set_fn cb, const char* field_name, long value, int idx) {
+	sge_value sv = NEW_SGE_VALUE;
+	sv.idx = idx;
+	sv.ptr = &value;
+	sv.name = field_name;
+	sv.vt = SGE_NUMBER;
+
+	cb(ud, &sv);
+	return SGE_OK;
+}
 
 static int
 sge_encode_block(const sge_block* block, const void* ud, uint8_t* buffer, field_get cb) {
@@ -84,83 +110,200 @@ sge_decode_dict(const sge_field* field, void* ud, const uint8_t* buffer, field_s
 }
 
 static int
+encode_number(const sge_field* field, const void* ud, uint8_t* buffer, field_get_fn cb, int size, int idx) {
+	long value = 0;
+	sge_get_number(ud, cb, field->name, &value, idx);
+	return sge_encode_number(buffer, value, size);
+}
+
+static int
+decode_number(const sge_field* field, void* ud, const uint8_t* buffer, field_set cb, int size, int idx) {
+	int ret;
+	long value = 0;
+
+	ret = sge_decode_number(buffer, &value, size);
+	sge_set_number(ud, cb, field->name, value, idx);
+	return ret;
+}
+
+static int
+encode_number_list(const sge_field* field, const void* ud, uint8_t* buffer, field_get cb, int size) {
+	size_t idx = 0, offset = 0, len = 0;
+	sge_value sv = NEW_SGE_VALUE;
+	sv.name = field->name;
+
+	cb(ud, &sv);
+	len = sge_encode_number(buffer, sv.len, 2);
+	buffer += len;
+	for (; idx < sv.len; ++idx) {
+		offset = encode_number(field, sv.ptr, buffer, cb, size, idx);
+		buffer += offset;
+		len += offset;
+	}
+
+	return len;
+}
+
+static int
+decode_number_list(const sge_field* field, void* ud, const uint8_t* buffer, field_set cb, int size) {
+	size_t len = 0, i = 0;
+	size_t offset = 0, byte_len;
+	sge_value sv = NEW_SGE_VALUE;
+
+	byte_len = sge_decode_number(buffer, (long*)&len, 2);
+	buffer += byte_len;
+
+	sv.len = len;
+	sv.name = field->name;
+	sv.vt = SGE_LIST;
+	ud = cb(ud, &sv);
+	for (; i < len; ++i) {
+		offset = decode_number(field, ud, buffer, cb, size, i);
+		buffer += offset;
+		byte_len += offset;
+	}
+
+	return byte_len;
+}
+
+static int
+encode_string_ex(const sge_field* field, const void* ud, uint8_t* buffer, field_get cb, int idx) {
+	sge_value sv = NEW_SGE_VALUE;
+	sv.idx = idx;
+	sv.name = field->name;
+
+	cb(ud, &sv);
+	return sge_encode_string(buffer, sv.ptr, sv.len);
+}
+
+static int
+decode_string_ex(const sge_field* field, void* ud, const uint8_t* buffer, field_set cb, int idx) {
+	size_t len = 0;
+	char* ptr;
+	sge_value sv = NEW_SGE_VALUE;
+	sv.idx = idx;
+
+	sge_decode_string(buffer, &ptr, &len);
+	if (len) {
+		sv.ptr = ptr;
+		sv.len = len;
+		sv.name = field->name;
+		sv.vt = SGE_STRING;
+		cb(ud, &sv);
+	}
+
+	return len + 2;
+}
+
+static int
 encode_number8(const sge_field* field, const void* ud, uint8_t* buffer, field_get cb) {
-	return sge_encode_number(field, 1, ud, buffer, cb, -1);
+	return encode_number(field, ud, buffer, cb, 1, -1);
 }
 
 static int
 decode_number8(const sge_field* field, void* ud, const uint8_t* buffer, field_set cb) {
-	return sge_decode_number(field, 1, ud, buffer, cb, -1);
+	return decode_number(field, ud, buffer, cb, 1, -1);
 }
 
 static int
 encode_number16(const sge_field* field, const void* ud, uint8_t* buffer, field_get cb) {
-	return sge_encode_number(field, 2, ud, buffer, cb, -1);
+	return encode_number(field, ud, buffer, cb, 2, -1);
 }
 
 static int
 decode_number16(const sge_field* field, void* ud, const uint8_t* buffer, field_set cb) {
-	return sge_decode_number(field, 2, ud, buffer, cb, -1);
+	return decode_number(field, ud, buffer, cb, 2, -1);
 }
 
 static int
 encode_number32(const sge_field* field, const void* ud, uint8_t* buffer, field_get cb) {
-	return sge_encode_number(field, 4, ud, buffer, cb, -1);
+	return encode_number(field, ud, buffer, cb, 4, -1);
 }
 
 static int
 decode_number32(const sge_field* field, void* ud, const uint8_t* buffer, field_set cb) {
-	return sge_decode_number(field, 4, ud, buffer, cb, -1);
+	return decode_number(field, ud, buffer, cb, 4, -1);
 }
 
 static int
 encode_number8_list(const sge_field* field, const void* ud, uint8_t* buffer, field_get cb) {
-	return sge_encode_number_list(field, 1, ud, buffer, cb);
+	return encode_number_list(field, ud, buffer, cb, 1);
 }
 
 static int
 decode_number8_list(const sge_field* field, void* ud, const uint8_t* buffer, field_set cb) {
-	return sge_decode_number_list(field, 1, ud, buffer, cb);
+	return decode_number_list(field, ud, buffer, cb, 1);
 }
 
 static int
 encode_number16_list(const sge_field* field, const void* ud, uint8_t* buffer, field_get cb) {
-	return sge_encode_number_list(field, 2, ud, buffer, cb);
+	return encode_number_list(field, ud, buffer, cb, 2);
 }
 
 static int
 decode_number16_list(const sge_field* field, void* ud, const uint8_t* buffer, field_set cb) {
-	return sge_decode_number_list(field, 2, ud, buffer, cb);
+	return decode_number_list(field, ud, buffer, cb, 2);
 }
 
 static int
 encode_number32_list(const sge_field* field, const void* ud, uint8_t* buffer, field_get cb) {
-	return sge_encode_number_list(field, 4, ud, buffer, cb);
+	return encode_number_list(field, ud, buffer, cb, 4);
 }
 
 static int
 decode_number32_list(const sge_field* field, void* ud, const uint8_t* buffer, field_set cb) {
-	return sge_decode_number_list(field, 4, ud, buffer, cb);
+	return decode_number_list(field, ud, buffer, cb, 4);
 }
 
 static int
 encode_string(const sge_field* field, const void* ud, uint8_t* buffer, field_get cb) {
-	return sge_encode_string(field, ud, buffer, cb, -1);
+	return encode_string_ex(field, ud, buffer, cb, -1);
 }
 
 static int
 decode_string(const sge_field* field, void* ud, const uint8_t* buffer, field_set cb) {
-	return sge_decode_string(field, ud, buffer, cb, -1);
+	return decode_string_ex(field, ud, buffer, cb, -1);
 }
 
 static int
 encode_string_list(const sge_field* field, const void* ud, uint8_t* buffer, field_get cb) {
-	return sge_encode_string_list(field, ud, buffer, cb);
+	size_t idx = 0, offset = 0, len = 0;
+	sge_value sv = NEW_SGE_VALUE;
+	sv.name = field->name;
+
+	cb(ud, &sv);
+
+	len = sge_encode_number(buffer, sv.len, 2);
+	buffer += len;
+	for (; idx < sv.len; ++idx) {
+		offset = encode_string_ex(field, sv.ptr, buffer, cb, idx);
+		buffer += offset;
+		len += offset;
+	}
+
+	return len;
 }
 
 static int
 decode_string_list(const sge_field* field, void* ud, const uint8_t* buffer, field_set cb) {
-	return sge_decode_string_list(field, ud, buffer, cb);
+	size_t len = 0, i = 0;
+	size_t offset = 0, byte_len;
+	sge_value sv = NEW_SGE_VALUE;
+
+	byte_len = sge_decode_number(buffer, (long*)&len, 2);
+	buffer += byte_len;
+
+	sv.len = len;
+	sv.name = field->name;
+	sv.vt = SGE_LIST;
+	ud = cb(ud, &sv);
+	for (; i < len; ++i) {
+		offset = decode_string_ex(field, ud, buffer, cb, i);
+		buffer += offset;
+		byte_len += offset;
+	}
+
+	return byte_len;
 }
 
 static int
@@ -452,6 +595,7 @@ sge_parse_file(const char* file) {
 int
 sge_encode(const char* name, const void *ud, char* buffer, field_get cb) {
 	sge_block *block;
+	uint16_t crc;
 	uint32_t keylen;
 	size_t offset = 0;
 	uint8_t *p_buffer = (uint8_t *)buffer;
@@ -471,17 +615,20 @@ sge_encode(const char* name, const void *ud, char* buffer, field_get cb) {
 		return SGE_ERR;
 	}
 
+	p_buffer += 2;
 	memcpy(p_buffer, SGE_PROTOCOL_HEADER, SGE_PROTOCOL_HEADER_SIZE);
-	*(p_buffer + 2) = block->idx >> 8 & 0xff;
-	*(p_buffer + 3) = block->idx & 0xff;
-	p_buffer += 4;
+	p_buffer += 2;
+	p_buffer += sge_encode_number(p_buffer, block->idx, 2);
 	offset = sge_encode_block(block, ud, p_buffer, cb);
-
-	return offset + 4;
+	crc = sge_crc16(buffer + 2, offset + 4);
+	sge_encode_number((uint8_t*)buffer, crc, 2);
+	return offset + 6;
 }
 
 int
 sge_decode(const char* buffer, void* ud, field_set cb) {
+	uint16_t s_crc, d_crc;
+	size_t byte_len;
 	uint32_t proto_idx = 0;
 	sge_block *block = NULL;
 
@@ -495,13 +642,15 @@ sge_decode(const char* buffer, void* ud, field_set cb) {
 		return NOT_SCHEME;
 	}
 
-	if (memcmp(buffer, SGE_PROTOCOL_HEADER, SGE_PROTOCOL_HEADER_SIZE) != 0) {
+	p += sge_decode_number(p, (long*)&s_crc, 2);
+
+	if (memcmp(p, SGE_PROTOCOL_HEADER, SGE_PROTOCOL_HEADER_SIZE) != 0) {
 		SET_ERROR(&protocol, "bytes wrong format.");
 		return SGE_ERR;
 	}
-
+	
 	p += SGE_PROTOCOL_HEADER_SIZE;
-	proto_idx = *p << 8 | *(p + 1);
+	sge_decode_number(p, (long*)&proto_idx, 2);
 	p += 2;
 
 	block = (sge_block*)sge_table_get(protocol.ht_idx, (void*)&proto_idx, -1);
@@ -509,7 +658,12 @@ sge_decode(const char* buffer, void* ud, field_set cb) {
 		SET_ERROR(&protocol, "can't found protocol: %d", proto_idx);
 		return SGE_ERR;
 	}
-	sge_decode_block(block, ud, p, cb);
+	byte_len = sge_decode_block(block, ud, p, cb);
+	d_crc = sge_crc16(buffer + 2, byte_len + 4);
+	if (s_crc != d_crc) {
+		SET_ERROR(&protocol, "invalid protocol");
+		return SGE_ERR;
+	}
 
 	return proto_idx;
 }

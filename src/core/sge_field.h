@@ -35,13 +35,10 @@ struct sge_field {
 sge_field* alloc_field(const char* name, size_t name_len, const sge_field_type* type, sge_block* block);
 void destroy_field(sge_field* field);
 
-int sge_encode_number(const sge_field* field, int size, const void* ud, uint8_t* buffer, field_get cb, int32_t idx);
-int sge_decode_number(const sge_field* field, int size, void* ud, const uint8_t* buffer, field_set cb, int32_t idx);
-int sge_encode_string(const sge_field* field, const void* ud, uint8_t* buffer, field_get cb, int32_t idx);
-int sge_decode_string(const sge_field* field, void* ud, const uint8_t* buffer, field_set cb, int32_t idx);
-int sge_encode_number_list(const sge_field* field, int size, const void* ud, uint8_t* buffer, field_get cb);
-int sge_decode_number_list(const sge_field* field, int size, void* ud, const uint8_t* buffer, field_set cb);
-int sge_encode_string_list(const sge_field *field, const void *ud, uint8_t *buffer, field_get cb);
-int sge_decode_string_list(const sge_field *field, void* ud, const uint8_t* buffer, field_set cb);
+int sge_encode_number(uint8_t* buffer, long value, int size);
+int sge_decode_number(const uint8_t* buffer, long* value, int size);
+int sge_encode_string(uint8_t* buffer, const char* ud, size_t len);
+int sge_decode_string(const uint8_t* buffer, char** ud, size_t *len);
+
 
 #endif

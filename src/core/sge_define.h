@@ -35,6 +35,9 @@ typedef struct sge_value {
 typedef void (*field_get)(const void *, sge_value *);
 typedef void* (*field_set)(void *, sge_value *);
 
+typedef void (*field_get_fn)(const void*, sge_value*);
+typedef void* (*field_set_fn)(void*, sge_value*);
+
 #define NEW_SGE_VALUE	{NULL, NULL, 0, -1, 1}
 
 
