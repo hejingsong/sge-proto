@@ -1,11 +1,11 @@
-PhoneNumber 1 {
-	num: string;
-	type: number8;
-}
-
 Person 2 {
 	name : string;
 	id : number[];
 	email: string;
 	phone: PhoneNumber[];
+}
+
+PhoneNumber 1 {
+	num: string;
+	type: number8;
 }

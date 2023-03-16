@@ -12,11 +12,13 @@ data = {
 }
 
 sgeProto.parseFile("../example.proto")
-
-
 sgeProto.debug()
 
 
+code = sgeProto.encode('Person', data)
+pack_code = sgeProto.pack(code)
+unpack_code = sgeProto.unpack(pack_code)
+result = sgeProto.decode(unpack_code)
 
 for i in range(10000000):
 	code = sgeProto.encode('Person', data)
@@ -24,4 +26,4 @@ for i in range(10000000):
 	unpack_code = sgeProto.unpack(pack_code)
 	result = sgeProto.decode(unpack_code)
 	print(result)
-	time.sleep(2)
+	time.sleep(0.2)

@@ -40,7 +40,10 @@ do {									\
 (type*)((void*)(ptr) - (void*)(&(((type*)0)->member)))
 
 #define LIST_FOREACH(start, head)		\
-for (start = (head)->next; (start) != (head); start = (start)->next) 
+for (start = (head)->next; (start) != (head); start = (start)->next)
+
+#define LIST_FOREACH_SAFE(start, next, head)		\
+for (start = (head)->next, next = start->next; (start) != (head); start = (next), next = (next)->next) 
 
 
 #endif

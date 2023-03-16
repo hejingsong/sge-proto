@@ -21,6 +21,7 @@ typedef struct {
 	int init;
 	sge_text text;
 	sge_list block_head;
+	sge_list unfinished_fields;
 	sge_table *ht_name;
 	sge_table *ht_idx;
 	char err[1024];
@@ -28,7 +29,8 @@ typedef struct {
 
 
 int sge_parse_protocol(sge_proto* proto);
-sge_field* sge_add_field(const char* field_name, size_t field_name_len, const char* type, size_t type_len);
+int sge_add_field(const char* field_name, size_t field_name_len, const char* type, size_t type_len, sge_field** field);
+int sge_get_block(const char* type, size_t type_len, sge_block** block);
 
 
 #endif

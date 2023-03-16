@@ -6,11 +6,15 @@
 
 int main(int argc, char const *argv[]) {
 	int code = sge_parse("	\
+bb 2 {						\
+	cc aa;					\
+	ww dd;					\
+}							\
 aa 1 {						\
 	aa number8;				\
 }							\
-bb 2 {						\
-	cc aa;					\
+dd 3 {						\
+	dd number8;				\
 }							\
 ");
 	printf("code: %d\n", code);

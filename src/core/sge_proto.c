@@ -487,10 +487,11 @@ compare_number(const void* ptr, const void* key, size_t keylen) {
 
 
 static int
-init_prototol() {
+init_protocol() {
 	protocol.ht_idx = sge_table_alloc();
 	protocol.ht_name = sge_table_alloc();
 	LIST_INIT(&(protocol.block_head));
+	LIST_INIT(&(protocol.unfinished_fields));
 	sge_table_init(protocol.ht_idx, hash_number, compare_number);
 	sge_table_init(protocol.ht_name, hash_string, compare_string);
 	memset(protocol.err, 0, sizeof(protocol.err));
@@ -501,7 +502,7 @@ init_prototol() {
 static int
 parse_text(const char* text) {
 	if (protocol.init == 0) {
-		init_prototol();
+		init_protocol();
 	}
 	protocol.text.data = text;
 	protocol.text.len = strlen(text);
@@ -511,12 +512,29 @@ parse_text(const char* text) {
 	return sge_parse_protocol(&protocol);
 }
 
-sge_field*
-sge_add_field(const char* field_name, size_t field_name_len, const char* type, size_t type_len) {
+int
+sge_get_block(const char* type, size_t type_len, sge_block** block) {
+	int ret = 1;
+	size_t cmp_type_len;
+
+	cmp_type_len = type_len;
+	if (0 == strncmp("[]", type + type_len - 2, 2)) {
+		cmp_type_len -= 2;
+		ret = 2;
+	}
+
+	*block = (sge_block*)sge_table_get(protocol.ht_name, type, cmp_type_len);
+	return ret;
+}
+
+int
+sge_add_field(const char* field_name, size_t field_name_len, const char* type, size_t type_len, sge_field** field) {
 	const sge_field_type* field_type = NULL;
 	const sge_field_type* p = field_type_table;
 	sge_block* block = NULL;
 	size_t cmp_type_len;
+	int offset = 0;
+	int ret = SGE_OK;
 
 	for (; p->name != NULL; ++p) {
 		cmp_type_len = (type_len >= p->name_len) ? type_len : p->name_len;
@@ -526,21 +544,15 @@ sge_add_field(const char* field_name, size_t field_name_len, const char* type, s
 		}
 	}
 	if (NULL == field_type) {
-		cmp_type_len = type_len;
-		if (0 == strncmp("[]", type + type_len - 2, 2)) {
-			cmp_type_len -= 2;
-		}
-		block = (sge_block*)sge_table_get(protocol.ht_name, type, cmp_type_len);
+		offset = sge_get_block(type, type_len, &block);
+		field_type = p + offset;
 		if (!block) {
-			return NULL;
-		}
-		if (type_len == cmp_type_len) {
-			field_type = p + 1;
-		} else {
-			field_type = p + 2;
+			ret = SGE_ERR;
 		}
 	}
-	return alloc_field(field_name, field_name_len, field_type, block);
+
+	*field = alloc_field(field_name, field_name_len, field_type, block);
+	return ret;
 }
 
 
@@ -627,11 +639,11 @@ sge_encode(const char* name, const void *ud, char* buffer, field_get cb) {
 
 int
 sge_decode(const char* buffer, void* ud, field_set cb) {
+	uint32_t proto_idx;
 	uint16_t s_crc, d_crc;
 	size_t byte_len;
-	uint32_t proto_idx = 0;
 	sge_block *block = NULL;
-
+	long l_proto_idx, l_s_crc;
 	const uint8_t *p = (uint8_t *)buffer;
 
 	if (NULL == buffer || NULL == ud || NULL == cb) {
@@ -642,7 +654,8 @@ sge_decode(const char* buffer, void* ud, field_set cb) {
 		return NOT_SCHEME;
 	}
 
-	p += sge_decode_number(p, (long*)&s_crc, 2);
+	p += sge_decode_number(p, &l_s_crc, 2);
+	s_crc = (uint16_t)l_s_crc;
 
 	if (memcmp(p, SGE_PROTOCOL_HEADER, SGE_PROTOCOL_HEADER_SIZE) != 0) {
 		SET_ERROR(&protocol, "bytes wrong format.");
@@ -650,7 +663,8 @@ sge_decode(const char* buffer, void* ud, field_set cb) {
 	}
 	
 	p += SGE_PROTOCOL_HEADER_SIZE;
-	sge_decode_number(p, (long*)&proto_idx, 2);
+	sge_decode_number(p, &l_proto_idx, 2);
+	proto_idx = (uint32_t)l_proto_idx;
 	p += 2;
 
 	block = (sge_block*)sge_table_get(protocol.ht_idx, (void*)&proto_idx, -1);

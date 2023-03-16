@@ -15,6 +15,25 @@
 #define VALID_NUMBER(c) (c >= 48 && c <= 57)
 #define VALID_CHAR(c) ((c >= 65 && c <= 90) || (c >= 97 && c <= 122) || (c == 95))
 
+typedef struct sge_unfinished_field {
+	sge_field* field;
+	const char* field_type;
+	size_t field_type_len;
+	sge_list entry;
+} sge_unfinished_field;
+
+static sge_unfinished_field*
+alloc_unfinished_field(sge_field* field, const char* field_type, size_t field_type_len) {
+	sge_unfinished_field* f = sge_malloc(sizeof(*f));
+
+	f->field = field;
+	f->field_type = field_type;
+	f->field_type_len = field_type_len;
+	LIST_INIT(&(f->entry));
+
+	return f;
+}
+
 static int
 verify_char(char c) {
 	if (VALID_CHAR(c) || VALID_NUMBER(c)) {
@@ -191,10 +210,12 @@ parse_field_type(sge_proto* proto, const char** field_type) {
 
 static sge_field*
 parse_protocol_field(sge_proto* proto) {
+	int ret;
 	const char* field_name = NULL, *field_type = NULL;
 	int field_name_len = 0, field_type_len = 0;
 	sge_text* text = &proto->text;
 	sge_field* field;
+	sge_unfinished_field* unfinished_field;
 
 	field_name_len = parse_name(proto, "field", &field_name);
 	if (field_name_len == SGE_ERR) {
@@ -212,9 +233,10 @@ parse_protocol_field(sge_proto* proto) {
 		return NULL;
 	}
 
-	field = sge_add_field(field_name, field_name_len, field_type, field_type_len);
-	if (NULL == field) {
-		SET_ERROR(proto, "can't found field type: %.*s at line: %ld", field_type_len, field_type, text->lineno);
+	ret = sge_add_field(field_name, field_name_len, field_type, field_type_len, &field);
+	if (SGE_ERR == ret) {
+		unfinished_field = alloc_unfinished_field(field, field_type, field_type_len);
+		LIST_ADD_TAIL(&(proto->unfinished_fields), &(unfinished_field->entry));
 	}
 	return field;
 }
@@ -288,7 +310,7 @@ parse_protocol_idx(sge_proto* proto, const char** p_idx) {
 }
 
 static int
-parse_protocol(sge_proto* proto) {
+parse_protocol_(sge_proto* proto) {
 	sge_block *block = NULL;
 	const char* proto_name = NULL, *proto_idx_str = NULL;
 	int proto_name_len = 0, proto_idx_len = 0, field_size = 0;
@@ -321,10 +343,45 @@ parse_protocol(sge_proto* proto) {
 	}
 	block->size = field_size;
 	add_block(proto, block);
-	return parse_protocol(proto);
+	return parse_protocol_(proto);
 ERR:
 	sge_destroy_block(block);
 	return SGE_ERR;
+}
+
+static int
+parse_unfinished_field(sge_proto* proto) {
+	int ret;
+	sge_list* iter, *next;
+	sge_field* field;
+	sge_block* block;
+	sge_unfinished_field* unfinished_field;
+
+	ret = SGE_OK;
+	LIST_FOREACH_SAFE(iter, next, &proto->unfinished_fields) {
+		unfinished_field = LIST_DATA(iter, sge_unfinished_field, entry);
+		sge_get_block(unfinished_field->field_type, unfinished_field->field_type_len, &block);
+		if (NULL == block) {
+			SET_ERROR(proto, "can't found custom type %.*s\n", (int)unfinished_field->field_type_len, unfinished_field->field_type);
+			ret = SGE_ERR;
+			break;
+		}
+		
+		unfinished_field->field->block = block;
+		LIST_REMOVE(&(unfinished_field->entry));
+		sge_free(unfinished_field);
+	}
+
+	return ret;
+}
+
+static int
+parse_protocol(sge_proto* proto) {
+	if (SGE_ERR == parse_protocol_(proto)) {
+		return SGE_ERR;
+	}
+
+	return parse_unfinished_field(proto);
 }
 
 // export

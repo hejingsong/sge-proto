@@ -1,5 +1,5 @@
-sge-proto: main.o sge_parser.o sge_proto.o sge_block.o sge_field.o sge_table.o
-	gcc -g main.o sge_parser.o sge_proto.o sge_block.o sge_field.o sge_table.o -o sge-proto
+sge-proto: main.o sge_parser.o sge_proto.o sge_block.o sge_field.o sge_table.o sge_crc16.o
+	gcc -g main.o sge_parser.o sge_proto.o sge_block.o sge_field.o sge_table.o sge_crc16.o -o sge-proto
 
 main.o: main.c
 	gcc -I../../src/core/ -g -c main.c -o main.o
@@ -18,6 +18,9 @@ sge_field.o: ../../src/core/sge_field.c
 
 sge_table.o: ../../src/core/sge_table.c
 	gcc -I../../src/core/ -g -c ../../src/core/sge_table.c -o sge_table.o
+
+sge_crc16.o: ../../src/core/sge_crc16.c
+	gcc -I../../src/core/ -g -c ../../src/core/sge_crc16.c -o sge_crc16.o
 
 .PHONY: clean
 clean:
