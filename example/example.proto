@@ -1,11 +1,20 @@
+# Person
 Person 2 {
-	name : string;
-	id : number[];
-	email: string;
-	phone: PhoneNumber[];
+  phone PhoneNumber[] optional;
+  name string required;
+  pid integer required;
+  email string[] optional;
+  number PhoneNumber;             # default optional
 }
 
+# PhoneNumber
 PhoneNumber 1 {
-	num: string;
-	type: number8;
+  id string required;
+  type integer[] required;
+}
+
+
+Example 3 {
+  id string[] optional;
+  name string required;
 }

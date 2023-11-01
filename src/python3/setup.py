@@ -3,12 +3,10 @@ from distutils.core import setup, Extension
 
 def main():
 	src = [
-		"../core/sge_proto.c",
-		"../core/sge_parser.c",
-		"../core/sge_block.c",
-		"../core/sge_field.c",
-		"../core/sge_table.c",
-		"../core/sge_crc16.c",
+		"../core/dict.c",
+		"../core/encoder.c",
+		"../core/parser.c",
+		"result.c",
 		"sgeproto_module.c"
 	]
 
