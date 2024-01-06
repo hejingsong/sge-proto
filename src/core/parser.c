@@ -36,7 +36,7 @@
 const char *ERROR_MSG[] = {
     "SUCCESS",      "FILE NOT FOUND",       "MEMORY NOT ENOUGH",
     "PARSER ERROR", "BLOCK NAME NOT FOUND", "ENCODE ERROR",
-    "DECODE ERROR"};
+    "DECODE ERROR", "NOT FOUND ANY PROTOCOL DEFINED"};
 
 static const char *FIELD_FLAGS[] = {"required", "optional", NULL};
 
@@ -518,7 +518,7 @@ static sge_block *parse_one_block(sge_proto *p) {
   sge_block *block = NULL;
 
   name_len = parse_block_name(p, &name);
-  if (HAS_ERROR(&p->err) || SGE_EOF(&p->parser)) {
+  if (HAS_ERROR(&p->err)) {
     return NULL;
   }
 
@@ -552,6 +552,10 @@ static void do_parse(sge_proto *p) {
   filter_utf8_bom(&p->parser);
 
   while (!SGE_EOF(&p->parser) && !HAS_ERROR(&p->err)) {
+    filter_comment(&p->parser);
+    if (SGE_EOF(&p->parser))
+      break;
+
     block = parse_one_block(p);
     if (block) {
       if (block->id > max_bid) {
@@ -590,6 +594,11 @@ static void do_parse(sge_proto *p) {
   return;
 
 err:
+  if (SGE_DICT_EMPTY(&p->blocks)) {
+    SGE_PROTO_ERROR(p, SGE_ERR_NOT_FOUND_PROTO);
+    return;
+  }
+
   sge_init_dict_iter(&iter, &p->blocks);
   while ((data = sge_dict_iter_next(&iter))) {
     block = (sge_block *)data;

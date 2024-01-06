@@ -26,7 +26,6 @@
 
 #define HAS_ERROR(e) ((e)->code != 0)
 
-#define sge_unused(p) (void)(p)
 #define sge_malloc malloc
 #define sge_calloc(s) calloc(1, s)
 #define sge_free(p) free((void *)(p))
@@ -72,6 +71,7 @@ struct sge_dict_iter {
 };
 
 struct sge_dict {
+  size_t size;
   struct list slots[SGE_DICT_SLOT_SIZE];
 };
 
@@ -139,6 +139,8 @@ struct sge_proto {
 #define SGE_LIST_FOREACH_SAFE(iter, next, list)                        \
   for ((iter) = (list)->next, (next) = (iter)->next; (iter) != (list); \
        (iter) = (next), (next) = (next)->next)
+
+#define SGE_DICT_EMPTY(d)         ((d)->size == 0)
 
 void sge_init_dict(sge_dict *d);
 void sge_insert_dict(sge_dict *d, const char *k, size_t kl, void *data);

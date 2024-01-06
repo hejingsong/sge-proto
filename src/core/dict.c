@@ -70,6 +70,7 @@ void sge_init_dict(sge_dict *d) {
     return;
   }
 
+  d->size = 0;
   for (i = 0; i < SGE_DICT_SLOT_SIZE; ++i) {
     l = &d->slots[i];
     SGE_LIST_INIT(l);
@@ -101,6 +102,7 @@ void sge_insert_dict(sge_dict *d, const char *k, size_t kl, void *data) {
   } else {
     n = alloc_node(k, kl, data);
     SGE_LIST_APPEND(l, &n->entry);
+    d->size += 1;
   }
 }
 
@@ -140,6 +142,7 @@ void sge_del_dict(sge_dict *d, const char *k, size_t kl) {
     if (0 == key_compare(n->k, n->kl, k, kl)) {
       SGE_LIST_REMOVE(&n->entry);
       sge_free(n);
+      d->size -= 1;
       break;
     }
   }
@@ -150,6 +153,7 @@ void sge_free_dict(sge_dict *d) {
   struct list *l = NULL, *iter = NULL, *next = NULL;
   sge_dict_node *n = NULL;
 
+  d->size = 0;
   for (i = 0; i < SGE_DICT_SLOT_SIZE; ++i) {
     l = &d->slots[i];
     SGE_LIST_FOREACH_SAFE(iter, next, l) {

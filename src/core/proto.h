@@ -15,6 +15,7 @@
 #define sge_integer long long
 #define sge_number double
 
+#define sge_unused(p) (void)(p)
 #define sge_value_type(t) ((t) & (~0x4000))
 #define sge_is_list(t) ((t)&FIELD_TYPE_LIST)
 
@@ -57,12 +58,13 @@ struct sge_proto;
 
 // error code
 enum {
-  SGE_ERR_FILE_NOT_FOUND,
+  SGE_ERR_FILE_NOT_FOUND = 1,
   SGE_ERR_MEMORY_NOT_ENOUGH,
   SGE_ERR_PARSER_ERROR,
   SGE_ERR_BLOCK_NAME_NOT_FOUND,
   SGE_ERR_ENCODE_ERROR,
-  SGE_ERR_DECODE_ERROR
+  SGE_ERR_DECODE_ERROR,
+  SGE_ERR_NOT_FOUND_PROTO
 };
 
 enum sge_field_type {

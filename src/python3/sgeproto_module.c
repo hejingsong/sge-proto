@@ -10,6 +10,70 @@ typedef struct {
 int init_result_type(PyObject *module);
 PyObject *new_proto_result(struct sge_string *s);
 
+static void dealloc(PySgeProto *o);
+static PyObject *encode(PyObject *self, PyObject *args);
+static PyObject *decode(PyObject *self, PyObject *buffer);
+static PyObject *debug(PyObject *self, PyObject *args);
+
+PyDoc_STRVAR(
+    sge_proto_doc,
+    "dict() -> new empty dictionary\n"
+    "dict(mapping) -> new dictionary initialized from a mapping object's\n"
+    "    (key, value) pairs\n"
+    "dict(iterable) -> new dictionary initialized as if via:\n"
+    "    d = {}\n"
+    "    for k, v in iterable:\n"
+    "        d[k] = v\n"
+    "dict(**kwargs) -> new dictionary initialized with the name=value pairs\n"
+    "    in the keyword argument list.  For example:  dict(one=1, two=2)");
+
+static PyMethodDef methods[] = {
+    {"encode", encode, METH_VARARGS, "sg protocol encode"},
+    {"decode", decode, METH_O, "sg protocol decode"},
+    {"debug", debug, METH_NOARGS, "print proto structure"},
+    {NULL, NULL}};
+
+PyTypeObject PyProto_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0) "sgeProto.Proto",
+    sizeof(PySgeProto),
+    0,
+    (destructor)dealloc,                      /* tp_dealloc */
+    0,                                        /* tp_vectorcall_offset */
+    0,                                        /* tp_getattr */
+    0,                                        /* tp_setattr */
+    0,                                        /* tp_as_async */
+    0,                                        /* tp_repr */
+    0,                                        /* tp_as_number */
+    0,                                        /* tp_as_sequence */
+    0,                                        /* tp_as_mapping */
+    0,                                        /* tp_hash */
+    0,                                        /* tp_call */
+    0,                                        /* tp_str */
+    0,                                        /* tp_getattro */
+    0,                                        /* tp_setattro */
+    0,                                        /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+    sge_proto_doc,                            /* tp_doc */
+    0,                                        /* tp_traverse */
+    0,                                        /* tp_clear */
+    0,                                        /* tp_richcompare */
+    0,                                        /* tp_weaklistoffset */
+    0,                                        /* tp_iter */
+    0,                                        /* tp_iternext */
+    methods,                                  /* tp_methods */
+    0,                                        /* tp_members */
+    0,                                        /* tp_getset */
+    0,                                        /* tp_base */
+    0,                                        /* tp_dict */
+    0,                                        /* tp_descr_get */
+    0,                                        /* tp_descr_set */
+    0,                                        /* tp_dictoffset */
+    0,                                        /* tp_init */
+    0,                                        /* tp_alloc */
+    0,                                        /* tp_new */
+    PyObject_Del,                             /* tp_free */
+};
+
 static int get(const void *ud, const struct sge_key *k, struct sge_value *v) {
   PyObject *obj = (PyObject *)ud;
   PyObject *val = NULL;
@@ -94,18 +158,6 @@ static void *set(void *ud, const struct sge_key *k, const struct sge_value *v) {
   Py_DECREF(val);
   return ret;
 }
-
-PyDoc_STRVAR(
-    sge_proto_doc,
-    "dict() -> new empty dictionary\n"
-    "dict(mapping) -> new dictionary initialized from a mapping object's\n"
-    "    (key, value) pairs\n"
-    "dict(iterable) -> new dictionary initialized as if via:\n"
-    "    d = {}\n"
-    "    for k, v in iterable:\n"
-    "        d[k] = v\n"
-    "dict(**kwargs) -> new dictionary initialized with the name=value pairs\n"
-    "    in the keyword argument list.  For example:  dict(one=1, two=2)");
 
 static void dealloc(PySgeProto *o) {
   sge_free_proto(o->proto);
@@ -202,51 +254,25 @@ out:
   return obj;
 }
 
-static PyMethodDef methods[] = {
-    {"encode", encode, METH_VARARGS, "sg protocol encode"},
-    {"decode", decode, METH_O, "sg protocol decode"},
-    {NULL, NULL}};
+static PyObject *debug(PyObject *self, PyObject *args) {
+  PySgeProto *proto = NULL;
 
-PyTypeObject PyProto_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0) "sgeProto.Proto",
-    sizeof(PySgeProto),
-    0,
-    (destructor)dealloc,                      /* tp_dealloc */
-    0,                                        /* tp_vectorcall_offset */
-    0,                                        /* tp_getattr */
-    0,                                        /* tp_setattr */
-    0,                                        /* tp_as_async */
-    0,                                        /* tp_repr */
-    0,                                        /* tp_as_number */
-    0,                                        /* tp_as_sequence */
-    0,                                        /* tp_as_mapping */
-    0,                                        /* tp_hash */
-    0,                                        /* tp_call */
-    0,                                        /* tp_str */
-    0,                                        /* tp_getattro */
-    0,                                        /* tp_setattro */
-    0,                                        /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
-    sge_proto_doc,                            /* tp_doc */
-    0,                                        /* tp_traverse */
-    0,                                        /* tp_clear */
-    0,                                        /* tp_richcompare */
-    0,                                        /* tp_weaklistoffset */
-    0,                                        /* tp_iter */
-    0,                                        /* tp_iternext */
-    methods,                                  /* tp_methods */
-    0,                                        /* tp_members */
-    0,                                        /* tp_getset */
-    0,                                        /* tp_base */
-    0,                                        /* tp_dict */
-    0,                                        /* tp_descr_get */
-    0,                                        /* tp_descr_set */
-    0,                                        /* tp_dictoffset */
-    0,                                        /* tp_init */
-    0,                                        /* tp_alloc */
-    0,                                        /* tp_new */
-    PyObject_Del,                             /* tp_free */
-};
+  if (self->ob_type != &PyProto_Type) {
+    PyErr_Format(PyExc_TypeError, "args 1 must be sgeProto.Proto.");
+    Py_RETURN_NONE;
+  }
+
+  Py_INCREF(self);
+  Py_XINCREF(args);
+
+  proto = (PySgeProto *)self;
+  sge_print_proto(proto->proto);
+
+  Py_DECREF(self);
+  Py_XDECREF(args);
+
+  Py_RETURN_NONE;
+}
 
 static PyObject *parse(PyObject *self, PyObject *buffer) {
   int ret = 0;
@@ -340,25 +366,9 @@ out:
   return obj;
 }
 
-static PyObject *debug(PyObject *self, PyObject *args) {
-  PySgeProto *proto = NULL;
-
-  Py_INCREF(self);
-  Py_INCREF(args);
-
-  proto = (PySgeProto *)self;
-  sge_print_proto(proto->proto);
-
-  Py_DECREF(self);
-  Py_DECREF(args);
-
-  Py_RETURN_NONE;
-}
-
 static PyMethodDef sge_proto_methods[] = {
     {"parse", parse, METH_O, "sg protocol parse from string buffer"},
     {"parse_file", parse_file, METH_O, "sg protocol parse from file"},
-    {"debug", debug, METH_NOARGS, "debug"},
     {NULL, NULL, 0, NULL}};
 
 static struct PyModuleDef sge_proto_module = {PyModuleDef_HEAD_INIT, "sgeProto",
